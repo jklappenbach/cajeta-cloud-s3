@@ -1,0 +1,53 @@
+{
+  "generator": {
+    "tool": "cajeta",
+    "version": "0.48.0"
+  },
+  "lockfile-version": 1,
+  "manifest-checksum": "sha256:fa03fe808f572f4f7426acf2d5ed694cfa7e3889eef9576ccde59c4cf04c8aeb",
+  "melts": [],
+  "overrides": [],
+  "packages": [
+    {
+      "checksum": "sha256:29a4c00c635de25b8b7d5c842ac7a268db3e7384f6907df52fa6f8c434aa3c20",
+      "name": "dev.cajeta.http",
+      "provided-by": "explicit",
+      "resolved-from": "olla",
+      "version": "0.9.1"
+    },
+    {
+      "checksum": "sha256:59c04a2b24f7a919f9d6647d103958309477446562f207a8f4e0bd1c0e049d1d",
+      "name": "dev.cajeta.crypto",
+      "provided-by": "explicit",
+      "resolved-from": "olla",
+      "version": "0.2.0"
+    },
+    {
+      "checksum": "sha256:6c85a7e73461a6929e90802b696552958fb706014c66ca94808548652c03216a",
+      "name": "dev.cajeta.codec",
+      "provided-by": "explicit",
+      "resolved-from": "olla",
+      "version": "0.9.1"
+    },
+    {
+      "checksum": "sha256:2b29694c575393de803b6ee6b7ea33bed219de3711d1f9c5b54fea20535a78c1",
+      "name": "dev.cajeta.cloud",
+      "provided-by": "explicit",
+      "resolved-from": "olla",
+      "version": "0.4.1"
+    }
+  ],
+  "plugins": [],
+  "properties": {
+    "cajeta.version": "0.48.0",
+    "details.group": "dev.cajeta.cloud",
+    "details.library": "s3",
+    "details.name": "dev.cajeta.cloud.s3",
+    "details.version": "0.1.0",
+    "flavor": "",
+    "profile": "",
+    "target": "",
+    "workspace.root": ""
+  },
+  "resolved-at": "2026-10-31T01:55:49Z"
+}

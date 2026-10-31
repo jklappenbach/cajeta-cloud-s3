@@ -1,0 +1,35 @@
+package dev.cajeta.cloud.s3;
+
+import cajeta.lang.String;
+
+/**
+ * Everything `S3ObjectStore.open` needs, given outright (cloudflare spec 2.1):
+ * the endpoint, the bucket, the credentials, and the part size for streamed
+ * writes and reads (8 MiB unless set). No credential chain is involved; the
+ * provider artifact that resolved the key builds one of these.
+ */
+public final class S3Config {
+    S3Endpoint where;
+    String bucketName;
+    S3Credentials creds;
+    int64 part;
+
+    public S3Config(#S3Endpoint endpoint, String bucket, #S3Credentials credentials) {
+        this.where #= endpoint;
+        this.bucketName = "" + bucket;
+        this.creds #= credentials;
+        this.part = S3ObjectStore.DEFAULT_PART_SIZE();
+        return;
+    }
+
+    /** Sets the part size; `S3ObjectStore.open` checks it against the profile. */
+    public void partSize(int64 bytes) {
+        this.part = bytes;
+        return;
+    }
+
+    public S3Endpoint endpoint() { return this.where; }
+    public String bucket() { return this.bucketName; }
+    public S3Credentials credentials() { return this.creds; }
+    public int64 partSize() { return this.part; }
+}

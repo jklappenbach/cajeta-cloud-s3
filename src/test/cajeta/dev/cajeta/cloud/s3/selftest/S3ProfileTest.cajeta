@@ -1,0 +1,92 @@
+package dev.cajeta.cloud.s3.selftest;
+
+import cajeta.lang.String;
+import dev.cajeta.unit.Assert;
+import dev.cajeta.cloud.Capabilities;
+import dev.cajeta.cloud.Caps;
+import dev.cajeta.cloud.CloudException;
+import dev.cajeta.cloud.object.CondResult;
+import dev.cajeta.cloud.s3.S3ObjectStore;
+import dev.cajeta.cloud.s3.S3Profile;
+import dev.cajeta.cloud.s3.testkit.FakeS3;
+
+/**
+ * A provider profile names what an S3-compatible store lacks (cloudflare spec
+ * 2.4, plan 1.1.4). The store's capabilities reflect it, and an operation the
+ * profile excludes fails per parent §3.2, naming the capability and the
+ * adapter, before any request is made. The default profile is AWS S3, which
+ * excludes nothing.
+ */
+public class S3ProfileTest {
+
+    public S3ProfileTest() {
+        return;
+    }
+
+    @Test
+    public void theDefaultProfileExcludesNothing() {
+        FakeS3 fake = heap FakeS3();
+        S3ObjectStore s #= heap S3ObjectStore(fake, "examplebucket", 65536L, S3Profile.aws());
+        Capabilities c = s.capabilities();
+        String name #= c.adapterName();
+        Assert.equals("s3", name);
+        Assert.isTrue(c.supports(Caps.COND_PUT_CREATE()));
+        Assert.isTrue(c.supports(Caps.COND_PUT_OVERWRITE()));
+        Assert.isTrue(c.supports(Caps.SERVER_SIDE_COPY()));
+        Assert.isTrue(c.supports(Caps.LIST_ORDERED()));
+        Assert.isTrue(c.supports(Caps.READ_AFTER_WRITE()));
+        Assert.isTrue(c.supports(Caps.MULTIPART()));
+        Assert.isTrue(c.supports(Caps.RANGE_READ()));
+        Assert.isTrue(S3Profile.aws().minPartSize() == 5242880L);
+        return;
+    }
+
+    @Test
+    public void anExcludedCapabilityIsNotDeclaredAndItsOperationRefuses() {
+        FakeS3 fake = heap FakeS3();
+        S3Profile p = heap S3Profile("r2");
+        p.exclude(Caps.COND_PUT_CREATE(), "not verified against R2 yet");
+        p.exclude(Caps.COND_PUT_OVERWRITE(), "not verified against R2 yet");
+        p.exclude(Caps.SERVER_SIDE_COPY(), "");
+        S3ObjectStore s #= heap S3ObjectStore(fake, "assets", 65536L, p);
+        Capabilities c = s.capabilities();
+        String name #= c.adapterName();
+        Assert.equals("r2", name);
+        Assert.isTrue(!c.supports(Caps.COND_PUT_CREATE()));
+        Assert.isTrue(!c.supports(Caps.SERVER_SIDE_COPY()));
+        Assert.isTrue(c.supports(Caps.MULTIPART()));
+        String text = "hello";
+        int8[] body #= text.toBytes();
+        String message = "";
+        int32 kind = -1;
+        try {
+            CondResult r #= s.putIfAbsent("k", body, "text/plain");
+        } catch (CloudException e) {
+            message = "" + e.message;
+            kind = e.kind();
+        }
+        Assert.isTrue(kind == CloudException.PROVIDER_ERROR());
+        Assert.isTrue(message.indexOf("object.conditional-put-create") >= 0L);
+        Assert.isTrue(message.indexOf("'r2'") >= 0L);
+        Assert.isTrue(fake.calls() == 0);
+        message = "";
+        try {
+            String etag #= s.copy("k", "k2");
+        } catch (CloudException e) {
+            message = "" + e.message;
+        }
+        Assert.isTrue(message.indexOf("object.server-side-copy") >= 0L);
+        Assert.isTrue(fake.calls() == 0);
+        return;
+    }
+
+    @Test
+    public void aProfileCarriesItsPartRule() {
+        S3Profile p = heap S3Profile("r2");
+        p.partRule(5242880L, true);
+        Assert.isTrue(p.minPartSize() == 5242880L);
+        Assert.isTrue(p.uniformParts());
+        Assert.isTrue(!S3Profile.aws().uniformParts());
+        return;
+    }
+}

@@ -1,0 +1,17 @@
+package dev.cajeta.cloud.s3;
+
+import cajeta.lang.String;
+
+/**
+ * The S3 protocol client for `dev.cajeta.cloud`'s object-store port: SigV4
+ * and `S3ObjectStore` over cajeta-http, with the endpoint and signing region
+ * configurable, so AWS S3, Cloudflare R2 and other S3-compatible stores share
+ * one implementation. A provider artifact supplies the credentials.
+ */
+public final class S3 {
+    /** This library's version, the literal of `details.version`; run-tests.sh checks they agree. */
+    public static String version() { return "0.1.0"; }
+
+    /** Archive entry point for `--emit=cja`; does nothing. */
+    public static int32 run() { return 0; }
+}

@@ -1,0 +1,70 @@
+package dev.cajeta.cloud.s3;
+
+import cajeta.collection.ArrayList;
+import cajeta.lang.String;
+
+/**
+ * What one S3-compatible service lacks or rules differently (cloudflare spec
+ * 2.4): the capabilities it does not offer, each with a caveat, and its
+ * multipart part rule. A store built with a profile declares only the
+ * capabilities the profile keeps, and an excluded operation refuses per the
+ * parent's §3.2 before any request is made. The profile's name is the
+ * adapter's name in capabilities and errors. `aws()` excludes nothing: every
+ * part but the last is at least 5 MiB, in any sizes.
+ */
+public final class S3Profile {
+    String adapter;
+    ArrayList<String> excluded;
+    ArrayList<String> caveats;
+    int64 minPart;
+    boolean uniform;
+
+    public S3Profile(String name) {
+        this.adapter = "" + name;
+        this.excluded = heap ArrayList<String>();
+        this.caveats = heap ArrayList<String>();
+        this.minPart = 5242880L;
+        this.uniform = false;
+        return;
+    }
+
+    /** AWS S3: the reference, with nothing excluded. */
+    public static #S3Profile aws() {
+        return heap S3Profile("s3");
+    }
+
+    /** The service does not offer `capability` (a `Caps` name); `caveat` says why. */
+    public void exclude(String capability, String caveat) {
+        String c = "" + capability;
+        String v = "" + caveat;
+        this.excluded.add(#c);
+        this.caveats.add(#v);
+        return;
+    }
+
+    /** The smallest part but the last, and whether every part but the last must be the same size. */
+    public void partRule(int64 minPartSize, boolean uniformParts) {
+        this.minPart = minPartSize;
+        this.uniform = uniformParts;
+        return;
+    }
+
+    public boolean excludes(String capability) {
+        for (int32 i = 0; i < this.excluded.count(); i++) {
+            if (this.excluded.get(i).equals(capability)) return true;
+        }
+        return false;
+    }
+
+    /** The caveat given when `capability` was excluded, or "". */
+    public #String caveatFor(String capability) {
+        for (int32 i = 0; i < this.excluded.count(); i++) {
+            if (this.excluded.get(i).equals(capability)) return "" + this.caveats.get(i);
+        }
+        return "" + "";
+    }
+
+    public String name() { return this.adapter; }
+    public int64 minPartSize() { return this.minPart; }
+    public boolean uniformParts() { return this.uniform; }
+}

@@ -1,0 +1,61 @@
+package dev.cajeta.cloud.s3.selftest;
+
+import cajeta.lang.String;
+import dev.cajeta.unit.Assert;
+import dev.cajeta.cloud.s3.S3Endpoint;
+
+/**
+ * Addressing is decided by an S3Endpoint (cloudflare spec 2.1, plan 1.1.2):
+ * AWS itself is virtual-host style in a region; an S3-compatible service is
+ * its base URL with the bucket in the path, or in the host when it supports
+ * virtual-host style; R2 is one such service, signing region "auto".
+ */
+public class S3EndpointTest {
+
+    public S3EndpointTest() {
+        return;
+    }
+
+    @Test
+    public void awsIsVirtualHostStyleInItsRegion() {
+        S3Endpoint e #= S3Endpoint.aws("us-east-1");
+        String base #= e.baseFor("examplebucket");
+        Assert.equals("https://examplebucket.s3.us-east-1.amazonaws.com", base);
+        Assert.equals("us-east-1", e.region());
+        Assert.isTrue(!e.pathStyle());
+        return;
+    }
+
+    @Test
+    public void awsPathStyleKeepsTheRegionalHost() {
+        S3Endpoint e #= S3Endpoint.at(null, "eu-west-2", true);
+        String base #= e.baseFor("examplebucket");
+        Assert.equals("https://s3.eu-west-2.amazonaws.com/examplebucket", base);
+        return;
+    }
+
+    @Test
+    public void aCompatibleEndpointPutsTheBucketInThePath() {
+        S3Endpoint e #= S3Endpoint.at("http://localhost:9000/", "us-east-1", true);
+        String base #= e.baseFor("examplebucket");
+        Assert.equals("http://localhost:9000/examplebucket", base);
+        return;
+    }
+
+    @Test
+    public void aCompatibleEndpointCanHostTheBucket() {
+        S3Endpoint e #= S3Endpoint.at("https://storage.example.net", "us-east-1", false);
+        String base #= e.baseFor("examplebucket");
+        Assert.equals("https://examplebucket.storage.example.net", base);
+        return;
+    }
+
+    @Test
+    public void r2IsACompatibleEndpointSignedForRegionAuto() {
+        S3Endpoint e #= S3Endpoint.at("https://0123456789abcdef.r2.cloudflarestorage.com", "auto", true);
+        String base #= e.baseFor("assets");
+        Assert.equals("https://0123456789abcdef.r2.cloudflarestorage.com/assets", base);
+        Assert.equals("auto", e.region());
+        return;
+    }
+}

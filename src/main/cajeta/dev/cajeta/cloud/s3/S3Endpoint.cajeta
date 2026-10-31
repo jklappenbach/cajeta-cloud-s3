@@ -1,0 +1,70 @@
+package dev.cajeta.cloud.s3;
+
+import cajeta.lang.String;
+
+/**
+ * Where an S3-compatible service is and how a bucket is addressed there
+ * (cloudflare spec 2.1): AWS itself (`aws(region)`), virtual-host style at
+ * `https://<bucket>.s3.<region>.amazonaws.com`; or a service's base URL
+ * (`at(endpoint, region, pathStyle)`) with the bucket in the path
+ * (`<endpoint>/<bucket>`) or, when the service supports it, in the host
+ * (`<scheme><bucket>.<host>`). `region` is the SigV4 signing region: a real
+ * one on AWS, "auto" on R2, whatever a compatible service documents.
+ */
+public final class S3Endpoint {
+    String host;        // the base URL without a trailing slash, or null for AWS
+    String signRegion;
+    boolean path;
+
+    S3Endpoint(String endpoint, String region, boolean pathStyle) {
+        if (endpoint == null) {
+            this.host = null;
+        } else {
+            this.host #= S3Endpoint.trimSlash(endpoint);
+        }
+        this.signRegion = "" + region;
+        this.path = pathStyle;
+        return;
+    }
+
+    /** AWS S3 in `region`, virtual-host style. */
+    public static #S3Endpoint aws(String region) {
+        return heap S3Endpoint(null, region, false);
+    }
+
+    /**
+     * A service at `endpoint` (null for AWS itself), signing for `region`;
+     * `pathStyle` puts the bucket in the path.
+     */
+    public static #S3Endpoint at(String endpoint, String region, boolean pathStyle) {
+        return heap S3Endpoint(endpoint, region, pathStyle);
+    }
+
+    /** The base URL every request on `bucket` starts from, no trailing slash. */
+    public #String baseFor(String bucket) {
+        if (this.path) {
+            if (this.host == null) {
+                return "https://s3." + this.signRegion + ".amazonaws.com/" + bucket;
+            }
+            return this.host + "/" + bucket;
+        }
+        if (this.host == null) {
+            return "https://" + bucket + ".s3." + this.signRegion + ".amazonaws.com";
+        }
+        int64 at = this.host.indexOf("://");
+        String scheme #= this.host.substring(0, (int32) (at + 3L));
+        String name #= this.host.substring((int32) (at + 3L), this.host.byteLength());
+        return scheme + bucket + "." + name;
+    }
+
+    public String region() { return this.signRegion; }
+    public boolean pathStyle() { return this.path; }
+    /** The service's base URL, or null for AWS. */
+    public String host() { return this.host; }
+
+    private static #String trimSlash(String s) {
+        int32 n = s.byteLength();
+        if (n > 0 && s.byteAt(n - 1) == (int8) 47) return s.substring(0, n - 1);
+        return "" + s;
+    }
+}

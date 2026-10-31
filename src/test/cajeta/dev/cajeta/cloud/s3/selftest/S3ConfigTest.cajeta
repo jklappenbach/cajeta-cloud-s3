@@ -1,0 +1,58 @@
+package dev.cajeta.cloud.s3.selftest;
+
+import cajeta.lang.String;
+import dev.cajeta.unit.Assert;
+import dev.cajeta.cloud.Capabilities;
+import dev.cajeta.cloud.Caps;
+import dev.cajeta.cloud.CloudException;
+import dev.cajeta.cloud.s3.S3Config;
+import dev.cajeta.cloud.s3.S3Credentials;
+import dev.cajeta.cloud.s3.S3Endpoint;
+import dev.cajeta.cloud.s3.S3ObjectStore;
+import dev.cajeta.cloud.s3.S3Profile;
+
+/**
+ * A store is built from an S3Config, endpoint, bucket and credentials given
+ * outright, with no credential chain involved (plan 1.1.3). Nothing is called
+ * until the first operation.
+ */
+public class S3ConfigTest {
+
+    public S3ConfigTest() {
+        return;
+    }
+
+    @Test
+    public void aConfigBuildsAStoreWithoutCallingTheService() {
+        S3Credentials creds = heap S3Credentials("AKIAIOSFODNN7EXAMPLE",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", null);
+        S3Endpoint e #= S3Endpoint.at("http://localhost:9000", "us-east-1", true);
+        S3Config c = heap S3Config(#e, "examplebucket", #creds);
+        S3ObjectStore s #= S3ObjectStore.open(c);
+        Capabilities caps = s.capabilities();
+        String name #= caps.adapterName();
+        Assert.equals("s3", name);
+        Assert.isTrue(caps.supports(Caps.COND_PUT_CREATE()));
+        Assert.isTrue(caps.supports(Caps.MULTIPART()));
+        Assert.isTrue(s.stats().requests() == 0L);
+        Assert.isTrue(c.partSize() == S3ObjectStore.DEFAULT_PART_SIZE());
+        return;
+    }
+
+    @Test
+    public void aPartSizeUnderTheProfilesMinimumIsRefusedAtConfiguration() {
+        S3Credentials creds = heap S3Credentials("AKIAIOSFODNN7EXAMPLE",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", null);
+        S3Endpoint e #= S3Endpoint.aws("us-east-1");
+        S3Config c = heap S3Config(#e, "examplebucket", #creds);
+        c.partSize(65536L);
+        String message = "";
+        try {
+            S3ObjectStore s #= S3ObjectStore.open(c, S3Profile.aws());
+        } catch (CloudException x) {
+            message = "" + x.message;
+        }
+        Assert.isTrue(message.indexOf("5242880") >= 0L);
+        return;
+    }
+}

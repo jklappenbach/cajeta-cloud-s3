@@ -1,0 +1,86 @@
+{
+    // cajeta-cloud-s3 — the S3 protocol client behind dev.cajeta.cloud's
+    // object-store port: SigV4, the S3 wire layer and S3ObjectStore, with the
+    // endpoint and signing region configurable, so one implementation serves
+    // AWS S3, Cloudflare R2 and any other S3-compatible store
+    // (cajeta-cloud-cloudflare spec §2). Credentials are given outright; a
+    // provider artifact (cajeta-cloud-aws, cajeta-cloud-cloudflare) supplies
+    // them.
+    //
+    // Capabilities: `network` for the service endpoint. No env, no filesystem:
+    // the chain that reads them belongs to the provider.
+
+    "details": {
+        "name":               "dev.cajeta.cloud.s3",
+        "version":            "0.1.0",
+        "description":        "cajeta-cloud-s3 — the S3 protocol client for dev.cajeta.cloud's object-store port: SigV4 and S3ObjectStore over cajeta-http, for AWS S3, R2 and other S3-compatible stores",
+        "license":            "Apache-2.0",
+        "authors":            ["Julian Klappenbach"],
+        "cajeta-lang-version": "1.0"
+    },
+
+    "settings": {
+        "toolchain": {
+            "version": "0.48.0"
+        },
+
+        "capabilities": ["network"],
+
+        // codec 0.9.1 (the XML reader) is a direct dependency; http 0.9.1 asks
+        // for codec 0.8.7 and crypto 0.1.0, and a bare version is a floor
+        // within its major, so the resolver takes the highest of the floors.
+        "dependencies": {
+            "dev.cajeta.cloud":  "0.4.1",
+            "dev.cajeta.http":   "0.9.1",
+            "dev.cajeta.codec":  "0.9.1",
+            "dev.cajeta.crypto": "0.2.0"
+        },
+
+        "dev-dependencies": {
+            "dev.cajeta.unit": "0.3.6"
+        },
+
+        "repositories": [
+            { "name": "central", "url": "https://olla.cajeta.dev",
+              "priority": 0 }
+        ],
+
+        "build": {
+            "source-root": "src/main/cajeta",
+            "target": "host"
+        }
+    },
+
+    "tasks": {
+
+        "build": {
+            "description": "Compile sources to a .cja library archive",
+            "actions": [
+                { "action": "build", "flavor": "debug", "id": "art" }
+            ],
+            "outputs": { "path": "${art.path}", "sha256": "${art.sha256}" }
+        },
+
+        "test": {
+            "description": "Build + run the library's test suite",
+            "actions": [
+                { "action": "exec", "command": "./run-tests.sh" }
+            ]
+        },
+
+        "release": {
+            "description": "Release build of the .cja",
+            "actions": [
+                { "action": "build", "flavor": "release", "id": "art" }
+            ],
+            "outputs": { "path": "${art.path}", "sha256": "${art.sha256}" }
+        },
+
+        "clean": {
+            "description": "Remove build outputs",
+            "actions": [
+                { "action": "exec", "command": "rm", "args": ["-rf", "build"] }
+            ]
+        }
+    }
+}
