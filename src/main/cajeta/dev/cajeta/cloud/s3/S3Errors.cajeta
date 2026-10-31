@@ -9,7 +9,8 @@ import dev.cajeta.codec.xml.XmlReader;
 /**
  * S3 error codes as the parent's CloudException kinds (adapters spec 2.4,
  * parent §11.1). The `<Error><Code>` decides; a HEAD answer has no body, so
- * the status alone decides there.
+ * the status alone decides there. A provider's profile may say what a code
+ * means on that service first (cloudflare spec 2.4, 3.6).
  */
 public final class S3Errors {
 
@@ -35,6 +36,15 @@ public final class S3Errors {
         return CloudException.PROVIDER_ERROR();
     }
 
+    /** `kindOf` with `profile`'s own entries consulted first. */
+    public static int32 kindOf(S3Profile profile, int32 status, String code) {
+        if (code.byteLength() > 0) {
+            int32 own = profile.kindFor(code);
+            if (own >= 0) return own;
+        }
+        return S3Errors.kindOf(status, code);
+    }
+
     /** The `<Code>` of an S3 error document, or "". */
     public static #String codeOf(int8[] body, int64 len) {
         return S3Errors.field(body, len, "Code");
@@ -45,14 +55,14 @@ public final class S3Errors {
         return S3Errors.field(body, len, "Message");
     }
 
-    /** The exception an S3 error answer raises, under `adapter`'s name. */
-    public static #CloudException of(S3Reply r, String adapter, String operation, String key) {
+    /** The exception an S3 error answer raises, under `profile`'s name and with its code entries. */
+    public static #CloudException of(S3Reply r, S3Profile profile, String operation, String key) {
         String code #= S3Errors.codeOf(r.body(), r.bodyLength());
         String msg #= S3Errors.messageOf(r.body(), r.bodyLength());
-        int32 kind = S3Errors.kindOf(r.status(), code);
+        int32 kind = S3Errors.kindOf(profile, r.status(), code);
         String detail #= "HTTP " + r.status();
         if (code.byteLength() > 0) detail #= code + ": " + msg;
-        return heap CloudException(kind, adapter, operation, key, detail);
+        return heap CloudException(kind, profile.name(), operation, key, detail);
     }
 
     // The text of the first <name> under the root <Error>, or "".

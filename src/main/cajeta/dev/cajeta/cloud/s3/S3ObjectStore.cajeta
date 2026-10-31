@@ -44,6 +44,7 @@ public final class S3ObjectStore implements ObjectStore {
     Capabilities caps;
     CloudStats statsObj;
     String adapter;
+    S3Profile profile;
 
     public static int64 DEFAULT_PART_SIZE() { return 8388608L; }
 
@@ -74,6 +75,7 @@ public final class S3ObjectStore implements ObjectStore {
         this.bucket = "" + bucket;
         this.partSize = partSize;
         this.adapter = "" + profile.name();
+        this.profile #= profile.copy();
         this.statsObj = heap CloudStats();
         Capabilities c = heap Capabilities(profile.name());
         S3ObjectStore.declare(c, profile, Caps.COND_PUT_CREATE(), "If-None-Match: *");
@@ -196,7 +198,7 @@ public final class S3ObjectStore implements ObjectStore {
         S3Reply rep #= this.call(r);
         String code #= S3Errors.codeOf(rep.body(), rep.bodyLength());
         if (!S3ObjectStore.ok(rep) || code.byteLength() > 0) {
-            CloudException e #= S3Errors.of(rep, this.adapter, "copy", srcKey);
+            CloudException e #= S3Errors.of(rep, this.profile, "copy", srcKey);
             throw e;
         }
         return S3ObjectStore.element(rep, "ETag");
@@ -358,7 +360,7 @@ public final class S3ObjectStore implements ObjectStore {
                 attempt = attempt + 1;
                 continue;
             }
-            CloudException e #= S3Errors.of(rep, this.adapter, op, key);
+            CloudException e #= S3Errors.of(rep, this.profile, op, key);
             throw e;
         }
     }
@@ -403,7 +405,7 @@ public final class S3ObjectStore implements ObjectStore {
         // CompleteMultipartUpload can answer 200 with an <Error> body.
         String code #= S3Errors.codeOf(rep.body(), rep.bodyLength());
         if (!S3ObjectStore.ok(rep) || code.byteLength() > 0) {
-            CloudException e #= S3Errors.of(rep, this.adapter, "complete", key);
+            CloudException e #= S3Errors.of(rep, this.profile, "complete", key);
             throw e;
         }
         return S3ObjectStore.element(rep, "ETag");
@@ -427,7 +429,7 @@ public final class S3ObjectStore implements ObjectStore {
     }
 
     private void fail(S3Reply rep, String operation, String key) {
-        CloudException e #= S3Errors.of(rep, this.adapter, operation, key);
+        CloudException e #= S3Errors.of(rep, this.profile, operation, key);
         throw e;
     }
 

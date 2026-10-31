@@ -21,7 +21,8 @@ import dev.cajeta.cloud.s3.S3Transport;
  * continuation, and multipart. One lock serializes it, as S3 serializes
  * conditional writes per key. It logs every request and records the largest
  * part body it was sent; `conflicts` answers that many conditional puts with
- * 409 ConditionalRequestConflict first.
+ * 409 ConditionalRequestConflict first; `partRule` makes it enforce a
+ * service's part sizes.
  */
 public final class FakeS3 implements S3Transport {
     Lock lock;
@@ -33,6 +34,8 @@ public final class FakeS3 implements S3Transport {
     public ArrayList<String> log;
     public int64 largestPart;
     public int32 conflicts;
+    int64 minPart;
+    boolean uniformParts;
 
     public FakeS3() {
         this.lock = heap Lock();
@@ -44,6 +47,20 @@ public final class FakeS3 implements S3Transport {
         this.log = heap ArrayList<String>();
         this.largestPart = 0L;
         this.conflicts = 0;
+        this.minPart = 0L;
+        this.uniformParts = false;
+        return;
+    }
+
+    /**
+     * Enforce a service's multipart rule at CompleteMultipartUpload: every
+     * part but the last at least `minPartSize` bytes (400 EntityTooSmall), and
+     * with `uniform`, every part but the last the same size (400 InvalidPart).
+     * Off by default, as S3 is permissive above 5 MiB.
+     */
+    public void partRule(int64 minPartSize, boolean uniform) {
+        this.minPart = minPartSize;
+        this.uniformParts = uniform;
         return;
     }
 
@@ -346,6 +363,17 @@ public final class FakeS3 implements S3Transport {
                 return FakeS3.error(400, "InvalidPart", "One or more of the specified parts could not be found.");
             }
             total = total + u.lens.get(p);
+            if (i + 1 < nums.count()) {
+                int64 len = u.lens.get(p);
+                if (len < this.minPart) {
+                    return FakeS3.error(400, "EntityTooSmall",
+                        "Your proposed upload is smaller than the minimum allowed object size.");
+                }
+                if (this.uniformParts && i > 0 && len != u.lens.get(u.indexOf(nums.get(0)))) {
+                    return FakeS3.error(400, "InvalidPart",
+                        "All non-trailing parts must have the same length.");
+                }
+            }
         }
         int8[] all = heap int8[total < 1L ? 1L : total];
         int64 o = 0L;

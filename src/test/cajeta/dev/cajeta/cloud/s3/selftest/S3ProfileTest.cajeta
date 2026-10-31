@@ -6,6 +6,7 @@ import dev.cajeta.cloud.Capabilities;
 import dev.cajeta.cloud.Caps;
 import dev.cajeta.cloud.CloudException;
 import dev.cajeta.cloud.object.CondResult;
+import dev.cajeta.cloud.s3.S3Errors;
 import dev.cajeta.cloud.s3.S3ObjectStore;
 import dev.cajeta.cloud.s3.S3Profile;
 import dev.cajeta.cloud.s3.testkit.FakeS3;
@@ -87,6 +88,36 @@ public class S3ProfileTest {
         Assert.isTrue(p.minPartSize() == 5242880L);
         Assert.isTrue(p.uniformParts());
         Assert.isTrue(!S3Profile.aws().uniformParts());
+        return;
+    }
+
+    @Test
+    public void aProfileMapsAServiceCodeToItsOwnKindAndTheStoreUsesIt() {
+        // S3 has no TooManyRequests code: by the S3 table it is an unknown code,
+        // a provider error. A service that answers it is saying "retry", and its
+        // profile says so (cloudflare spec 2.4, 3.6).
+        S3Profile p = heap S3Profile("r2");
+        Assert.isTrue(p.kindFor("TooManyRequests") == -1);
+        p.errorKind("TooManyRequests", CloudException.TRANSIENT());
+        Assert.isTrue(p.kindFor("TooManyRequests") == CloudException.TRANSIENT());
+        Assert.isTrue(p.kindFor("NoSuchKey") == -1);
+        Assert.isTrue(S3Errors.kindOf(429, "TooManyRequests") == CloudException.PROVIDER_ERROR());
+        Assert.isTrue(S3Errors.kindOf(p, 429, "TooManyRequests") == CloudException.TRANSIENT());
+        Assert.isTrue(S3Errors.kindOf(p, 404, "NoSuchKey") == CloudException.NOT_FOUND());
+        OneReply t = heap OneReply(429, "TooManyRequests", "slow down");
+        S3ObjectStore s #= heap S3ObjectStore(t, "assets", 65536L, p);
+        int32 kind = -1;
+        String message = "";
+        try {
+            int8[] got #= s.get("k");
+        } catch (CloudException e) {
+            kind = e.kind();
+            message = "" + e.message;
+        }
+        Assert.isTrue(kind == CloudException.TRANSIENT());
+        Assert.isTrue(message.indexOf("TooManyRequests") >= 0L);
+        Assert.isTrue(message.indexOf("r2: get 'k'") >= 0L);
+        Assert.isTrue(t.calls == 1);
         return;
     }
 }

@@ -1,0 +1,109 @@
+package dev.cajeta.cloud.s3.selftest;
+
+import cajeta.lang.String;
+import dev.cajeta.unit.Assert;
+import dev.cajeta.cloud.CloudException;
+import dev.cajeta.cloud.object.MultipartUpload;
+import dev.cajeta.cloud.object.ObjectWriter;
+import dev.cajeta.cloud.s3.S3ObjectStore;
+import dev.cajeta.cloud.s3.S3Profile;
+import dev.cajeta.cloud.s3.testkit.FakeS3;
+
+/**
+ * FakeS3 can enforce a service's multipart part rule (cloudflare spec 3.4,
+ * plan 3.1.4): every part but the last at least `minPart` bytes, and, when the
+ * rule says so, every part but the last the same size. An upload breaking
+ * the rule is refused at CompleteMultipartUpload with S3's EntityTooSmall or
+ * InvalidPart, so a writer that sizes parts wrongly fails in the test, not
+ * against the service. The streaming writer keeps the rule by construction:
+ * every part but the last is exactly the part size.
+ */
+public class FakeS3PartRuleTest {
+
+    public FakeS3PartRuleTest() {
+        return;
+    }
+
+    @Test
+    public void anUndersizedMiddlePartIsRefused() {
+        FakeS3 fake = heap FakeS3();
+        fake.partRule(16L, true);
+        S3ObjectStore s #= heap S3ObjectStore(fake, "assets", 16L, S3Profile.aws());
+        MultipartUpload up #= s.beginMultipart("k", "t");
+        up.addPart(1, FakeS3PartRuleTest.filled(16L));
+        up.addPart(2, FakeS3PartRuleTest.filled(8L));
+        up.addPart(3, FakeS3PartRuleTest.filled(4L));
+        String message #= FakeS3PartRuleTest.completeFails(up);
+        Assert.isTrue(message.indexOf("EntityTooSmall") >= 0L);
+        Assert.isTrue(!s.stat("k").exists);
+        return;
+    }
+
+    @Test
+    public void unequalPartsAreRefusedWhenTheRuleIsUniform() {
+        FakeS3 fake = heap FakeS3();
+        fake.partRule(16L, true);
+        S3ObjectStore s #= heap S3ObjectStore(fake, "assets", 16L, S3Profile.aws());
+        MultipartUpload up #= s.beginMultipart("k", "t");
+        up.addPart(1, FakeS3PartRuleTest.filled(16L));
+        up.addPart(2, FakeS3PartRuleTest.filled(32L));
+        up.addPart(3, FakeS3PartRuleTest.filled(4L));
+        String message #= FakeS3PartRuleTest.completeFails(up);
+        Assert.isTrue(message.indexOf("InvalidPart") >= 0L);
+        // The same shape passes when the rule allows any sizes at the minimum.
+        FakeS3 loose = heap FakeS3();
+        loose.partRule(16L, false);
+        S3ObjectStore s2 #= heap S3ObjectStore(loose, "assets", 16L, S3Profile.aws());
+        MultipartUpload up2 #= s2.beginMultipart("k", "t");
+        up2.addPart(1, FakeS3PartRuleTest.filled(16L));
+        up2.addPart(2, FakeS3PartRuleTest.filled(32L));
+        up2.addPart(3, FakeS3PartRuleTest.filled(4L));
+        String etag #= up2.complete();
+        Assert.isTrue(s2.stat("k").size == 52L);
+        return;
+    }
+
+    @Test
+    public void equalPartsAndAShortTailPassAndTheWriterKeepsTheRule() {
+        FakeS3 fake = heap FakeS3();
+        fake.partRule(16L, true);
+        S3ObjectStore s #= heap S3ObjectStore(fake, "assets", 16L, S3Profile.aws());
+        MultipartUpload up #= s.beginMultipart("k", "t");
+        up.addPart(1, FakeS3PartRuleTest.filled(16L));
+        up.addPart(2, FakeS3PartRuleTest.filled(16L));
+        up.addPart(3, FakeS3PartRuleTest.filled(4L));
+        String etag #= up.complete();
+        Assert.isTrue(s.stat("k").size == 36L);
+        // The streaming writer, fed odd chunks, uploads 16-byte parts and a tail.
+        ObjectWriter w #= s.openWrite("w", "t");
+        int8[] c1 #= FakeS3PartRuleTest.filled(7L);
+        int8[] c2 #= FakeS3PartRuleTest.filled(20L);
+        int8[] c3 #= FakeS3PartRuleTest.filled(13L);
+        w.write(c1, 7L);
+        w.write(c2, 20L);
+        w.write(c3, 13L);
+        String wtag #= w.complete();
+        Assert.isTrue(s.stat("w").size == 40L);
+        Assert.isTrue(fake.largestPart == 16L);
+        return;
+    }
+
+    static #int8[] filled(int64 n) {
+        int8[] b = heap int8[n];
+        for (int64 i = 0L; i < n; i++) b[i] = (int8) 120;
+        return #b;
+    }
+
+    static #String completeFails(MultipartUpload up) {
+        String message #= "" + "";
+        int32 kind = -1;
+        try {
+            String etag #= up.complete();
+        } catch (CloudException e) {
+            message #= "" + e.message;
+            kind = e.kind();
+        }
+        Assert.isTrue(kind == CloudException.PROVIDER_ERROR());
+        return #message;
+    }
+}
