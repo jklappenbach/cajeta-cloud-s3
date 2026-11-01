@@ -10,7 +10,7 @@ import cajeta.lang.String;
  */
 public final class S3 {
     /** This library's version, the literal of `details.version`; run-tests.sh checks they agree. */
-    public static String version() { return "0.1.0"; }
+    public static String version() { return "0.1.1"; }
 
     /** Archive entry point for `--emit=cja`; does nothing. */
     public static int32 run() { return 0; }

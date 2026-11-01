@@ -1,0 +1,72 @@
+package dev.cajeta.cloud.s3.selftest;
+
+import cajeta.lang.String;
+import dev.cajeta.unit.Assert;
+import dev.cajeta.cloud.CloudException;
+import dev.cajeta.cloud.s3.S3Config;
+import dev.cajeta.cloud.s3.S3Credentials;
+import dev.cajeta.cloud.s3.S3Endpoint;
+import dev.cajeta.cloud.s3.S3ObjectStore;
+import dev.cajeta.cloud.s3.S3Profile;
+import dev.cajeta.cloud.s3.testkit.FakeS3;
+
+/**
+ * A store keeps the transport it is handed. Both constructors forwarded the
+ * transport to `init` as a lend, so `init`'s `#=` recorded a borrow and the
+ * constructor's formal freed the transport on return. A store from
+ * `S3ObjectStore.open` then built its first URL from freed memory
+ * (SIGSEGV in HttpS3Transport.url, found 2026-11-01 by the first HTTP round
+ * trip, cajeta-cloud-cloudflare plan 7.1.4).
+ */
+public class S3OpenOwnershipTest {
+
+    public S3OpenOwnershipTest() {
+        return;
+    }
+
+    // Allocations that reuse whatever a freed transport left behind.
+    static int64 churn() {
+        int64 total = 0L;
+        for (int32 i = 0; i < 200; i++) {
+            String s #= "churn-" + i + "-0123456789abcdef0123456789abcdef";
+            S3Credentials c = heap S3Credentials(s, s, null);
+            total = total + (int64) c.accessKeyId().byteLength();
+        }
+        return total;
+    }
+
+    @Test
+    public void anOpenedStoreKeepsItsHttpTransport() {
+        S3Endpoint where #= S3Endpoint.at("http://127.0.0.1:9/s3", "auto", true);
+        S3Credentials creds = heap S3Credentials("AKIDFAKE", "secret", null);
+        S3Config c = heap S3Config(#where, "bucket-1", #creds);
+        S3ObjectStore store #= S3ObjectStore.open(c, S3Profile.aws());
+        Assert.isTrue(S3OpenOwnershipTest.churn() > 0L);
+        int8[] body #= "x".toBytes();
+        int32 kind = -1;
+        try {
+            String etag #= store.put("k", body, "text/plain");
+        } catch (CloudException e) {
+            kind = e.kind();
+        }
+        // Nothing listens on port 9, so an intact transport reports TRANSIENT.
+        Assert.equals(CloudException.TRANSIENT(), kind);
+        return;
+    }
+
+    static #S3ObjectStore overHandedFake() {
+        FakeS3 fake = heap FakeS3();
+        return heap S3ObjectStore(#fake, "bucket-1", 8388608L);
+    }
+
+    @Test
+    public void aStoreHandedATransportOwnsIt() {
+        S3ObjectStore store #= S3OpenOwnershipTest.overHandedFake();
+        Assert.isTrue(S3OpenOwnershipTest.churn() > 0L);
+        int8[] body #= "kept".toBytes();
+        String etag #= store.put("k", body, "text/plain");
+        int8[] back #= store.get("k");
+        Assert.equals((int64) 4, (int64) back.count());
+        return;
+    }
+}

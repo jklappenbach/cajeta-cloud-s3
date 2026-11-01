@@ -12,7 +12,7 @@
 
     "details": {
         "name":               "dev.cajeta.cloud.s3",
-        "version":            "0.1.0",
+        "version":            "0.1.1",
         "description":        "cajeta-cloud-s3 — the S3 protocol client for dev.cajeta.cloud's object-store port: SigV4 and S3ObjectStore over cajeta-http, for AWS S3, R2 and other S3-compatible stores",
         "license":            "Apache-2.0",
         "authors":            ["Julian Klappenbach"],
